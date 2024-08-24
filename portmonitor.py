@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--ports", default="example.com:80,example.com:443")
 parser.add_argument("--notify_on_errors", default=2, type=int)
 parser.add_argument("--timeout", default=3, type=int)
-parser.add_argument("--ntfy_topic", default="PortMonitor")
+parser.add_argument("--ntfy_topic")
 parser.add_argument("--report", nargs="?", const=True, type=bool)
 args = parser.parse_args()
 
@@ -50,25 +50,27 @@ def main():
         # Check port
         if checkPort(port["address"], port["port"]):
             # OK
-            uptime = ( uptime * ( uptimeSamples - 1 ) + 1 ) / uptimeSamples
+            uptime = (uptime * (uptimeSamples - 1) + 1) / uptimeSamples
 
             # Output / notification
             print(f"OK ({str(round(uptime*100, 3))}%)", flush=True)
             if errors >= args.notify_on_errors:
                 # Notify back from Error to OK
-                send_notification("OK", f"{port['name']} ({str(round(uptime*100, 3))}%)")
+                send_notification(
+                    "OK", f"{port['name']} ({str(round(uptime*100, 3))}%)")
             errors = 0
         else:
             # Error
             errors += 1
-            uptime = uptime * ( uptimeSamples - 1 ) / uptimeSamples
+            uptime = uptime * (uptimeSamples - 1) / uptimeSamples
 
             # Output / notification
             print(f"ERROR {errors} ({str(round(uptime*100, 3))}%)", flush=True)
             if errors == args.notify_on_errors:
                 # Notify Error
-                send_notification("Error", f"{port['name']} ({str(round(uptime*100, 3))}%)", True)
-        
+                send_notification("Error", f"{port['name']} ({
+                                  str(round(uptime*100, 3))}%)", True)
+
         # Update new db
         newdb[port["name"]] = {"uptime": uptime, "errors": errors}
 
@@ -78,6 +80,8 @@ def main():
 
 
 def send_notification(title: str, message: str, warning: bool = False, report: bool = False):
+    if not args.ntfy_topic:
+        return False
     prio = "3"
     tag = "+1"
     if warning:
@@ -92,7 +96,7 @@ def send_notification(title: str, message: str, warning: bool = False, report: b
             data=message,
             headers={"Title": title, "Priority": prio, "Tags": tag}
         )
-        print("Notification sent", flush=True)
+        print(f"Notification sent to {args.ntfy_topic}", flush=True)
     except Exception as e:
         print(e, end=" ")
 
