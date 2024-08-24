@@ -56,8 +56,7 @@ def main():
             print(f"OK ({str(round(uptime*100, 3))}%)", flush=True)
             if errors >= args.notify_on_errors:
                 # Notify back from Error to OK
-                send_notification(
-                    "OK", f"{port['name']} ({str(round(uptime*100, 3))}%)")
+                send_notification("OK", f"{port['name']} ({str(round(uptime*100, 3))}%)")
             errors = 0
         else:
             # Error
@@ -68,8 +67,7 @@ def main():
             print(f"ERROR {errors} ({str(round(uptime*100, 3))}%)", flush=True)
             if errors == args.notify_on_errors:
                 # Notify Error
-                send_notification("Error", f"{port['name']} ({
-                                  str(round(uptime*100, 3))}%)", True)
+                send_notification("Error", f"{port['name']} ({str(round(uptime*100, 3))}%)", True)
 
         # Update new db
         newdb[port["name"]] = {"uptime": uptime, "errors": errors}
