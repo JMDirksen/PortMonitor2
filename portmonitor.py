@@ -1,26 +1,28 @@
-import os
-import socket
-import requests  # py -m pip install requests
-import time
+import argparse
 import json
+import os
+import requests  # py -m pip install requests
+import socket
+import time
 
-# Get/set environment variables / defaults
-PORT_LIST = os.getenv('PORT_LIST') or "example.com:80 example.com:443"
-INTERVAL = int(os.getenv('INTERVAL') or 300)
-NOTIFY_ERROR_COUNT = int(os.getenv('NOTIFY_ERROR_COUNT') or 2)
-TIMEOUT = int(os.getenv('TIMEOUT') or 3)
-NTFY_TOPIC = os.getenv('NTFY_TOPIC') or "PortMonitor"
+parser = argparse.ArgumentParser()
+parser.add_argument("--ports", default="example.com:80 example.com:443")
+parser.add_argument("--interval", default=300, type=int)
+parser.add_argument("--notify_error_count", default=2, type=int)
+parser.add_argument("--timeout", default=3, type=int)
+parser.add_argument("--ntfy_topic", default="PortMonitor")
+args = parser.parse_args()
 
 
 def main():
-    ports = ports_to_list(PORT_LIST)
+    ports = ports_to_list(args.ports)
 
     # Load uptimes
     uptime = {}
     if os.path.exists("uptime.json"):
         with open("uptime.json", "r") as file:
             uptime = json.load(file)
-    uptimeSamples = 30*24*60*60 / INTERVAL
+    uptimeSamples = 30*24*60*60 / args.interval
 
     while True:
         for port in ports:
@@ -40,7 +42,7 @@ def main():
 
                 # Output / notification
                 print(f"OK ({str(round(newUptime*100, 3))}%)", flush=True)
-                if port['error_count'] >= NOTIFY_ERROR_COUNT:
+                if port['error_count'] >= args.notify_error_count:
                     # Notify back from Error to OK
                     send_notification("OK", f"{port['string']} ({str(round(newUptime*100, 3))}%)")
                 port['error_count'] = 0
@@ -52,7 +54,7 @@ def main():
 
                 # Output / notification
                 print(f"ERROR {port['error_count']} ({str(round(newUptime*100, 3))}%)", flush=True)
-                if port['error_count'] == NOTIFY_ERROR_COUNT:
+                if port['error_count'] == args.notify_error_count:
                     # Notify Error
                     send_notification("Error", f"{port['string']} ({str(round(newUptime*100, 3))}%)", True)
 
@@ -60,7 +62,7 @@ def main():
         with open("uptime.json", "w") as file:
             json.dump(uptime, file)
         
-        time.sleep(INTERVAL)
+        time.sleep(args.interval)
 
 
 def send_notification(title: str, message: str, warning: bool = False):
@@ -71,7 +73,7 @@ def send_notification(title: str, message: str, warning: bool = False):
         tag = "warning"
     try:
         requests.post(
-            f"https://ntfy.sh/{NTFY_TOPIC}",
+            f"https://ntfy.sh/{args.ntfy_topic}",
             data=message,
             headers={"Title": title, "Priority": prio, "Tags": tag}
         )
@@ -94,7 +96,7 @@ def ports_to_list(ports: str) -> list:
 def checkPort(address: str, port: int):
     try:
         s = socket.socket()
-        s.settimeout(TIMEOUT)
+        s.settimeout(args.timeout)
         s.connect((address, port))
     except Exception as e:
         return False
