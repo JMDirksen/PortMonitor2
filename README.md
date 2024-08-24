@@ -20,6 +20,6 @@ python3 portmonitor.py --report
 ### Crontab
 
 ```
-* * * * * python3 ~/PortMonitor2/portmonitor.py --ports example.com:80,example.com:443 --ntfy_topic PortMonitor
-0 7 * * * python3 ~/PortMonitor2/portmonitor.py --report --ntfy_topic PortMonitor
+* * * * * python3 ~/PortMonitor2/portmonitor.py --ports example.com:80,example.com:443 --ntfy_topic PortMonitor > /dev/null 2>&1
+0 7 * * * python3 ~/PortMonitor2/portmonitor.py --report --ntfy_topic PortMonitor > /dev/null 2>&1
 ```
