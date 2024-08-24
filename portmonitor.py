@@ -14,12 +14,6 @@ args = parser.parse_args()
 
 
 def main():
-    if args.report:
-        print("Report!")
-        exit()
-
-    uptimeSamples = 30*24*60
-    ports = ports_to_list(args.ports)
 
     # Load db
     if os.path.exists("db.json"):
@@ -28,6 +22,20 @@ def main():
     else:
         db = {}
     newdb = {}
+
+    # Report only
+    if args.report:
+        msg = "Uptimes:\n"
+        for port in db:
+            msg += f"{port} {str(round(db[port]["uptime"]*100, 3))}%"
+            if db[port]["errors"]:
+                msg += f" ({db[port]["errors"]} errors)"
+            msg += "\n"
+        send_notification("Report", msg, report=True)
+        exit()
+
+    uptimeSamples = 30*24*60
+    ports = ports_to_list(args.ports)
 
     for port in ports:
         print(f"> {port["name"]} ... ", end="", flush=True)
@@ -67,12 +75,15 @@ def main():
         json.dump(newdb, file)
 
 
-def send_notification(title: str, message: str, warning: bool = False):
+def send_notification(title: str, message: str, warning: bool = False, report: bool = False):
     prio = "3"
     tag = "+1"
     if warning:
         prio = "5"
         tag = "warning"
+    if report:
+        prio = "2"
+        tag = "heavy_check_mark"
     try:
         requests.post(
             f"https://ntfy.sh/{args.ntfy_topic}",
