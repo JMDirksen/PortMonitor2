@@ -3,66 +3,66 @@ import json
 import os
 import requests  # py -m pip install requests
 import socket
-import time
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--ports", default="example.com:80 example.com:443")
-parser.add_argument("--interval", default=300, type=int)
-parser.add_argument("--notify_error_count", default=2, type=int)
+parser.add_argument("--ports", default="example.com:80,example.com:443")
+parser.add_argument("--notify_on_errors", default=2, type=int)
 parser.add_argument("--timeout", default=3, type=int)
 parser.add_argument("--ntfy_topic", default="PortMonitor")
 args = parser.parse_args()
 
 
 def main():
+    uptimeSamples = 30*24*60
     ports = ports_to_list(args.ports)
 
-    # Load uptimes
-    uptime = {}
-    if os.path.exists("uptime.json"):
-        with open("uptime.json", "r") as file:
-            uptime = json.load(file)
-    uptimeSamples = 30*24*60*60 / args.interval
+    # Load db
+    if os.path.exists("db.json"):
+        with open("db.json", "r") as file:
+            db = json.load(file)
+    else:
+        db = {}
 
-    while True:
-        for port in ports:
-            print(f"> {port['string']} ... ", end="", flush=True)
+    for port in ports:
+        print(f"> {port["name"]} ... ", end="", flush=True)
 
-            # Get uptime
-            if port['string'] in uptime:
-                currentUptime = float(uptime[port['string']])
-            else:
-                currentUptime = 1.0
+        # Check db
+        if not port["name"] in db:
+            db[port["name"]] = {"uptime": 1.0, "errors": 0}
 
-            # Check port
-            if checkPort(port['address'], port['port']):
-                # OK
-                newUptime = ( currentUptime * ( uptimeSamples - 1 ) + 1 ) / uptimeSamples
-                uptime[port['string']] = newUptime
+        # Get uptime and errors
+        uptime = float(db[port["name"]]["uptime"])
+        errors = db[port["name"]]["errors"]
 
-                # Output / notification
-                print(f"OK ({str(round(newUptime*100, 3))}%)", flush=True)
-                if port['error_count'] >= args.notify_error_count:
-                    # Notify back from Error to OK
-                    send_notification("OK", f"{port['string']} ({str(round(newUptime*100, 3))}%)")
-                port['error_count'] = 0
-            else:
-                # Error
-                port['error_count'] += 1
-                newUptime = currentUptime * ( uptimeSamples - 1 ) / uptimeSamples
-                uptime[port['string']] = newUptime
+        # Check port
+        if checkPort(port["address"], port["port"]):
+            # OK
+            uptime = ( uptime * ( uptimeSamples - 1 ) + 1 ) / uptimeSamples
 
-                # Output / notification
-                print(f"ERROR {port['error_count']} ({str(round(newUptime*100, 3))}%)", flush=True)
-                if port['error_count'] == args.notify_error_count:
-                    # Notify Error
-                    send_notification("Error", f"{port['string']} ({str(round(newUptime*100, 3))}%)", True)
+            # Output / notification
+            print(f"OK ({str(round(uptime*100, 3))}%)", flush=True)
+            if errors >= args.notify_on_errors:
+                # Notify back from Error to OK
+                send_notification("OK", f"{port["name"]} ({str(round(uptime*100, 3))}%)")
+            errors = 0
+        else:
+            # Error
+            errors += 1
+            uptime = uptime * ( uptimeSamples - 1 ) / uptimeSamples
 
-        # Save uptimes
-        with open("uptime.json", "w") as file:
-            json.dump(uptime, file)
+            # Output / notification
+            print(f"ERROR {errors} ({str(round(uptime*100, 3))}%)", flush=True)
+            if errors == args.notify_on_errors:
+                # Notify Error
+                send_notification("Error", f"{port["name"]} ({str(round(uptime*100, 3))}%)", True)
         
-        time.sleep(args.interval)
+        # Update db
+        db[port["name"]]["errors"] = errors
+        db[port["name"]]["uptime"] = uptime
+
+    # Save db
+    with open("db.json", "w") as file:
+        json.dump(db, file)
 
 
 def send_notification(title: str, message: str, warning: bool = False):
@@ -84,11 +84,17 @@ def send_notification(title: str, message: str, warning: bool = False):
 
 def ports_to_list(ports: str) -> list:
     portsList = []
-    for portString in ports.split():
-        address, port = portString.split(':')
+    for portString in ports.replace(" ", ",").replace(";", ",").split(","):
+        if not portString:
+            continue
+        try:
+            address, port = portString.split(":")
+        except:
+            print(f"Bad format: \"{portString}\"")
+            continue
         portsList.append(
-            {'string': portString, 'address': address,
-                'port': int(port), 'error_count': 0}
+            {"name": portString, "address": address,
+                "port": int(port), "error_count": 0}
         )
     return portsList
 
