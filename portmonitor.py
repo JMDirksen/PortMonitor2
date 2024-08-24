@@ -16,8 +16,9 @@ args = parser.parse_args()
 def main():
 
     # Load db
-    if os.path.exists("db.json"):
-        with open("db.json", "r") as file:
+    db_file = os.path.realpath(__file__).replace(".py", ".json")
+    if os.path.exists(db_file):
+        with open(db_file, "r") as file:
             db = json.load(file)
     else:
         db = {}
@@ -71,7 +72,7 @@ def main():
         newdb[port["name"]] = {"uptime": uptime, "errors": errors}
 
     # Save new db
-    with open("db.json", "w") as file:
+    with open(db_file, "w") as file:
         json.dump(newdb, file)
 
 
