@@ -32,6 +32,7 @@ def main():
             if db[port]["errors"]:
                 msg += f" ({db[port]['errors']} errors)"
             msg += "\n"
+        print(msg)
         send_notification("Report", msg, report=True)
         exit()
 
