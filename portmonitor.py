@@ -9,10 +9,15 @@ parser.add_argument("--ports", default="example.com:80,example.com:443")
 parser.add_argument("--notify_on_errors", default=2, type=int)
 parser.add_argument("--timeout", default=3, type=int)
 parser.add_argument("--ntfy_topic", default="PortMonitor")
+parser.add_argument("--report", nargs="?", const=True, type=bool)
 args = parser.parse_args()
 
 
 def main():
+    if args.report:
+        print("Report!")
+        exit()
+
     uptimeSamples = 30*24*60
     ports = ports_to_list(args.ports)
 
@@ -22,17 +27,15 @@ def main():
             db = json.load(file)
     else:
         db = {}
+    newdb = {}
 
     for port in ports:
         print(f"> {port["name"]} ... ", end="", flush=True)
 
-        # Check db
-        if not port["name"] in db:
-            db[port["name"]] = {"uptime": 1.0, "errors": 0}
-
         # Get uptime and errors
-        uptime = float(db[port["name"]]["uptime"])
-        errors = db[port["name"]]["errors"]
+        dbport = db.get(port["name"], {})
+        uptime = float(dbport.get("uptime", 1.0))
+        errors = int(dbport.get("errors", 0))
 
         # Check port
         if checkPort(port["address"], port["port"]):
@@ -56,13 +59,12 @@ def main():
                 # Notify Error
                 send_notification("Error", f"{port["name"]} ({str(round(uptime*100, 3))}%)", True)
         
-        # Update db
-        db[port["name"]]["errors"] = errors
-        db[port["name"]]["uptime"] = uptime
+        # Update new db
+        newdb[port["name"]] = {"uptime": uptime, "errors": errors}
 
-    # Save db
+    # Save new db
     with open("db.json", "w") as file:
-        json.dump(db, file)
+        json.dump(newdb, file)
 
 
 def send_notification(title: str, message: str, warning: bool = False):
