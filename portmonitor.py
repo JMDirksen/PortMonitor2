@@ -6,6 +6,7 @@ import socket
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--ports", default="example.com:80,example.com:443")
+parser.add_argument("--interval", default=1, type=int)
 parser.add_argument("--notify_on_errors", default=2, type=int)
 parser.add_argument("--timeout", default=3, type=int)
 parser.add_argument("--ntfy_topic")
@@ -36,7 +37,7 @@ def main():
         send_notification("Report", msg, report=True)
         exit()
 
-    uptimeSamples = 30*24*60
+    uptimeSamples = 30*24*60/args.interval
     ports = ports_to_list(args.ports)
 
     for port in ports:
