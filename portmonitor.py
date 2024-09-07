@@ -7,6 +7,7 @@ import socket
 parser = argparse.ArgumentParser()
 parser.add_argument("--ports", default="example.com:80,example.com:443")
 parser.add_argument("--interval", default=1, type=int)
+parser.add_argument("--days", default=30, type=int)
 parser.add_argument("--notify_on_errors", default=2, type=int)
 parser.add_argument("--timeout", default=3, type=int)
 parser.add_argument("--ntfy_topic")
@@ -29,7 +30,7 @@ def main():
     if args.report:
         msg = "Uptimes:\n"
         for port in db:
-            msg += f"{port} {str(round(db[port]['uptime']*100, 3))}%"
+            msg += f"{port} {str(round(avg(db[port]['samples'])*100, 3))}%"
             if db[port]["errors"]:
                 msg += f" ({db[port]['errors']} errors)"
             msg += "\n"
@@ -37,21 +38,23 @@ def main():
         send_notification("Report", msg, report=True)
         exit()
 
-    uptimeSamples = 30*24*60/args.interval
+    maxSamples = args.days*24*60/args.interval
     ports = ports_to_list(args.ports)
 
     for port in ports:
         print(f"> {port['name']} ... ", end="", flush=True)
 
-        # Get uptime and errors
+        # Get samples and errors
         dbport = db.get(port["name"], {})
-        uptime = float(dbport.get("uptime", 1.0))
+        samples = dbport.get("samples", [])
         errors = int(dbport.get("errors", 0))
 
         # Check port
         if checkPort(port["address"], port["port"]):
             # OK
-            uptime = (uptime * (uptimeSamples - 1) + 1) / uptimeSamples
+            samples.append(1)
+            samples = limit(samples, maxSamples)
+            uptime = avg(samples)
 
             # Output / notification
             print(f"OK ({str(round(uptime*100, 3))}%)", flush=True)
@@ -62,7 +65,9 @@ def main():
         else:
             # Error
             errors += 1
-            uptime = uptime * (uptimeSamples - 1) / uptimeSamples
+            samples.append(0)
+            samples = limit(samples, maxSamples)
+            uptime = avg(samples)
 
             # Output / notification
             print(f"ERROR {errors} ({str(round(uptime*100, 3))}%)", flush=True)
@@ -71,7 +76,7 @@ def main():
                 send_notification("Error", f"{port['name']} ({str(round(uptime*100, 3))}%)", True)
 
         # Update new db
-        newdb[port["name"]] = {"uptime": uptime, "errors": errors}
+        newdb[port["name"]] = {"samples": samples, "errors": errors}
 
     # Save new db
     with open(db_file, "w") as file:
@@ -127,6 +132,16 @@ def checkPort(address: str, port: int):
     finally:
         s.close()
     return True
+
+
+def avg(list: list):
+    return sum(list) / len(list)
+
+
+def limit(samples: list, maxSamples: int):
+    while len(samples) > maxSamples:
+        del samples[0]
+    return samples
 
 
 if __name__ == "__main__":
